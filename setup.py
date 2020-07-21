@@ -1,6 +1,9 @@
 import os
 import sys
 
+os.environ["CC"] = "gcc"
+os.environ["CXX"] = "g++"
+
 # Check if we have numpy:
 try:
     from numpy.distutils.misc_util import Configuration

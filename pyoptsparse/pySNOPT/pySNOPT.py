@@ -146,6 +146,8 @@ class SNOPT(Optimizer):
                 list,
                 ["step", "merit", "feasibility", "optimality", "penalty"],
             ],  # 'Hessian', 'slack', 'lambda' and 'condZHZ' are also supported
+            # time limit argument that would be passed to the call method, also (temporarily) defined here to be used with openmdao
+            "Time Limit" : [float, None],
         }
         self.informs = {
             0: "finished successfully",
@@ -303,6 +305,9 @@ class SNOPT(Optimizer):
             Must be in seconds. This can be useful on queue systems when
             you want an optimization to cleanly finish before the
             job runs out of time.
+
+            Note Anil: This time limit will be overwritten if the option
+            "Time Limit: is set in the options dictionary.
             """
 
         self.callCounter = 0
@@ -310,6 +315,9 @@ class SNOPT(Optimizer):
 
         # Store the starting time if the keyword timeLimit is given:
         self.timeLimit = timeLimit
+        # update the time limit if its set in the options dictionary
+        if self.options['Time Limit'][1] is not None:
+            self.timeLimit = self.options['Time Limit'][1]
         self.startTime = time.time()
 
         if len(optProb.constraints) == 0:

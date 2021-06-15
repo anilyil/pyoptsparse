@@ -1,53 +1,59 @@
-# /bin/env python
 """
 pySLSQP - A variation of the pySLSQP wrapper specificially designed to
 work with sparse optimization problems.
 """
-# =============================================================================
-# SLSQP Library
-# =============================================================================
+# Compiled module
 try:
-    from . import slsqp
+    from . import slsqp  # isort: skip
 except ImportError:
     slsqp = None
-# =============================================================================
 # Standard Python modules
-# =============================================================================
+import datetime
 import os
 import time
-import datetime
 
-# =============================================================================
-# External Python modules
-# =============================================================================
+# External modules
 import numpy as np
 
-# ===========================================================================
-# Extension modules
-# ===========================================================================
-from ..pyOpt_optimizer import Optimizer
+# Local modules
 from ..pyOpt_error import Error
+from ..pyOpt_optimizer import Optimizer
 
-# =============================================================================
-# SLSQP Optimizer Class
-# =============================================================================
+
 class SLSQP(Optimizer):
     """
     SLSQP Optimizer Class - Inherited from Optimizer Abstract Class
     """
 
-    def __init__(self, raiseError=True, *args, **kwargs):
+    def __init__(self, raiseError=True, options={}):
         name = "SLSQP"
         category = "Local Optimizer"
-        self.defOpts = {
-            # SLSQP Options
-            "ACC": [float, 1e-6],  # Convergence Accurancy
-            "MAXIT": [int, 500],  # Maximum Iterations
-            "IPRINT": [int, 1],  # Output Level (<0 - None, 0 - Screen, 1 - File)
-            "IOUT": [int, 6],  # Output Unit Number
-            "IFILE": [str, "SLSQP.out"],  # Output File Name
+        defOpts = self._getDefaultOptions()
+        informs = self._getInforms()
+        if slsqp is None:
+            if raiseError:
+                raise Error("There was an error importing the compiled slsqp module")
+
+        self.set_options = []
+        super().__init__(name, category, defaultOptions=defOpts, informs=informs, options=options)
+
+        # SLSQP needs Jacobians in dense format
+        self.jacType = "dense2d"
+
+    @staticmethod
+    def _getDefaultOptions():
+        defOpts = {
+            "ACC": [float, 1e-6],
+            "MAXIT": [int, 500],
+            "IPRINT": [int, 1],
+            "IOUT": [int, 60],
+            "IFILE": [str, "SLSQP.out"],
         }
-        self.informs = {
+        return defOpts
+
+    @staticmethod
+    def _getInforms():
+        informs = {
             -1: "Gradient evaluation required (g & a)",
             0: "Optimization terminated successfully.",
             1: "Function evaluation required (f & c)",
@@ -60,15 +66,7 @@ class SLSQP(Optimizer):
             8: "Positive directional derivative for linesearch",
             9: "Iteration limit exceeded",
         }
-        if slsqp is None:
-            if raiseError:
-                raise Error("There was an error importing the compiled slsqp module")
-
-        self.set_options = []
-        Optimizer.__init__(self, name, category, self.defOpts, self.informs, *args, **kwargs)
-
-        # SLSQP needs Jacobians in dense format
-        self.jacType = "dense2d"
+        return informs
 
     def __call__(
         self, optProb, sens=None, sensStep=None, sensMode=None, storeHistory=None, hotStart=None, storeSens=True
@@ -120,7 +118,7 @@ class SLSQP(Optimizer):
         storeSens : bool
             Flag sepcifying if sensitivities are to be stored in hist.
             This is necessay for hot-starting only.
-            """
+        """
 
         self.callCounter = 0
         self.storeSens = storeSens
@@ -136,8 +134,9 @@ class SLSQP(Optimizer):
         # Save the optimization problem and finalize constraint
         # Jacobian, in general can only do on root proc
         self.optProb = optProb
-        self.optProb.finalizeDesignVariables()
-        self.optProb.finalizeConstraints()
+        self.optProb.finalize()
+        # Set history/hotstart
+        self._setHistory(storeHistory, hotStart)
         self._setInitialCacheValues()
         self._setSens(sens, sensStep, sensMode)
         blx, bux, xs = self._assembleContinuousVariables()
@@ -164,9 +163,6 @@ class SLSQP(Optimizer):
             meq = len(tmp0)
 
         if self.optProb.comm.rank == 0:
-            # Set history/hotstart
-            self._setHistory(storeHistory, hotStart)
-
             # =================================================================
             # SLSQP - Objective/Constraint Values Function
             # =================================================================
@@ -257,7 +253,7 @@ class SLSQP(Optimizer):
             self.optProb.comm.bcast(-1, root=0)
 
             # Store Results
-            inform = np.asscalar(mode)
+            inform = mode.item()
             sol_inform = {}
             sol_inform["value"] = inform
             sol_inform["text"] = self.informs[inform]
@@ -273,9 +269,3 @@ class SLSQP(Optimizer):
         sol = self._communicateSolution(sol)
 
         return sol
-
-    def _on_setOption(self, name, value):
-        pass
-
-    def _on_getOption(self, name, value):
-        pass

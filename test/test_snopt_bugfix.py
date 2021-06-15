@@ -3,16 +3,20 @@
 # problem is a simple paraboloid. The minimum should be at (7.166667,
 # -7.833334), but with the bug, x and y stay at zero.
 
+# Standard Python modules
 import unittest
 
+# External modules
 import numpy as np
 from numpy.testing import assert_allclose
-from pyoptsparse import Optimization, SNOPT
+
+# First party modules
+from pyoptsparse import SNOPT, Optimization
 from pyoptsparse.pyOpt_error import Error
 
 
 def objfunc(xdict):
-    """ Evaluates the equation f(x,y) = (x-3)^2 + xy + (y+4)^2 - 3 """
+    """Evaluates the equation f(x,y) = (x-3)^2 + xy + (y+4)^2 - 3"""
     x = xdict["x"]
     y = xdict["y"]
     funcs = {}
@@ -26,7 +30,7 @@ def objfunc(xdict):
 
 
 def objfunc_no_con(xdict):
-    """ Evaluates the equation f(x,y) = (x-3)^2 + xy + (y+4)^2 - 3 """
+    """Evaluates the equation f(x,y) = (x-3)^2 + xy + (y+4)^2 - 3"""
     x = xdict["x"]
     y = xdict["y"]
     funcs = {}
@@ -38,7 +42,7 @@ def objfunc_no_con(xdict):
 
 
 def objfunc_2con(xdict):
-    """ Evaluates the equation f(x,y) = (x-3)^2 + xy + (y+4)^2 - 3 """
+    """Evaluates the equation f(x,y) = (x-3)^2 + xy + (y+4)^2 - 3"""
     x = xdict["x"]
     y = xdict["y"]
     funcs = {}
@@ -53,14 +57,16 @@ def objfunc_2con(xdict):
 
 
 def sens(xdict, funcs):
-    """f(x,y) = (x-3)^2 + xy + (y+4)^2 - 3
-    """
+    """f(x,y) = (x-3)^2 + xy + (y+4)^2 - 3"""
     x = xdict["x"]
     y = xdict["y"]
-    funcsSens = {}
 
-    funcsSens["obj", "x"] = 2.0 * x - 6.0 + y
-    funcsSens["obj", "y"] = 2.0 * y + 8.0 + x
+    funcsSens = {
+        "obj": {
+            "x": 2.0 * x - 6.0 + y,
+            "y": 2.0 * y + 8.0 + x,
+        }
+    }
 
     fail = False
     return funcsSens, fail
@@ -77,9 +83,8 @@ class TestSNOPTBug(unittest.TestCase):
         optProb = Optimization("Paraboloid", objfunc)
 
         # Design Variables
-        optProb.addVarGroup("x", 1, type="c", lower=-50.0, upper=50.0, value=0.0)
-        optProb.addVarGroup("y", 1, type="c", lower=-50.0, upper=50.0, value=0.0)
-        optProb.finalizeDesignVariables()
+        optProb.addVarGroup("x", 1, varType="c", lower=-50.0, upper=50.0, value=0.0)
+        optProb.addVarGroup("y", 1, varType="c", lower=-50.0, upper=50.0, value=0.0)
 
         # Objective
         optProb.addObj("obj")
@@ -114,9 +119,8 @@ class TestSNOPTBug(unittest.TestCase):
         optProb = Optimization("Paraboloid", objfunc_no_con)
 
         # Design Variables
-        optProb.addVarGroup("x", 1, type="c", lower=-50.0, upper=50.0, value=0.0)
-        optProb.addVarGroup("y", 1, type="c", lower=-50.0, upper=50.0, value=0.0)
-        optProb.finalizeDesignVariables()
+        optProb.addVarGroup("x", 1, varType="c", lower=-50.0, upper=50.0, value=0.0)
+        optProb.addVarGroup("y", 1, varType="c", lower=-50.0, upper=50.0, value=0.0)
 
         # Objective
         optProb.addObj("obj")
@@ -141,9 +145,8 @@ class TestSNOPTBug(unittest.TestCase):
         optProb = Optimization("Paraboloid", objfunc_2con)
 
         # Design Variables
-        optProb.addVarGroup("x", 1, type="c", lower=-50.0, upper=50.0, value=0.0)
-        optProb.addVarGroup("y", 1, type="c", lower=-50.0, upper=50.0, value=0.0)
-        optProb.finalizeDesignVariables()
+        optProb.addVarGroup("x", 1, varType="c", lower=-50.0, upper=50.0, value=0.0)
+        optProb.addVarGroup("y", 1, varType="c", lower=-50.0, upper=50.0, value=0.0)
 
         # Objective
         optProb.addObj("obj")

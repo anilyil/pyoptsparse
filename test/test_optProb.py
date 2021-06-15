@@ -1,14 +1,22 @@
 """Test for optProb"""
 
+# Standard Python modules
 import unittest
+
+# External modules
 import numpy as np
 from numpy.testing import assert_allclose
-from pyoptsparse import Optimization, OPT
 
-tol = 1e-12
+# First party modules
+from pyoptsparse import OPT, Optimization
+
+# Local modules
+from testing_utils import assert_dict_allclose, assert_dict_not_allclose, assert_not_allclose, assert_optProb_size
 
 
 class TestOptProb(unittest.TestCase):
+    tol = 1e-12
+
     def objfunc(self, xdict):
         """
         This is a simple quadratic test function with linear constraints.
@@ -57,7 +65,13 @@ class TestOptProb(unittest.TestCase):
             dvName = "x{}".format(iDV)
             self.x0[dvName] = x0
             self.optProb.addVarGroup(
-                dvName, n, lower=lower, upper=upper, value=x0, scale=xScale[iDV], offset=offset[iDV],
+                dvName,
+                n,
+                lower=lower,
+                upper=upper,
+                value=x0,
+                scale=xScale[iDV],
+                offset=offset[iDV],
             )
 
         # Constraints
@@ -66,7 +80,11 @@ class TestOptProb(unittest.TestCase):
             lower = np.random.uniform(-5, 2, nc)
             upper = np.random.uniform(5, 6, nc)
             self.optProb.addConGroup(
-                "con_{}".format(iCon), nc, lower=lower, upper=upper, scale=conScale[iCon],
+                "con_{}".format(iCon),
+                nc,
+                lower=lower,
+                upper=upper,
+                scale=conScale[iCon],
             )
 
         # Objective
@@ -86,23 +104,35 @@ class TestOptProb(unittest.TestCase):
         We just test that setDV and getDV work, even with scaling
         """
         self.setup_optProb(
-            nObj=1, nDV=[4, 8], nCon=[2, 3], xScale=[4, 1], objScale=[0.3], conScale=[0.1, 8], offset=[3, 7],
+            nObj=1,
+            nDV=[4, 8],
+            nCon=[2, 3],
+            xScale=[4, 1],
+            objScale=[0.3],
+            conScale=[0.1, 8],
+            offset=[3, 7],
         )
         # test getDV first
         x0 = self.optProb.getDVs()
-        self.assert_dict_allclose(x0, self.x0)
+        assert_dict_allclose(x0, self.x0)
         # now set, get, and compare
         newDV = {"x0": np.arange(4), "x1": np.arange(8)}
         self.optProb.setDVs(newDV)
         outDV = self.optProb.getDVs()
-        self.assert_dict_allclose(newDV, outDV)
+        assert_dict_allclose(newDV, outDV)
 
     def test_setDV_VarGroup(self):
         """
         Test that setDV works with a subset of VarGroups
         """
         self.setup_optProb(
-            nObj=1, nDV=[4, 8], nCon=[2, 3], xScale=[4, 1], objScale=[0.3], conScale=[0.1, 8], offset=[3, 7],
+            nObj=1,
+            nDV=[4, 8],
+            nCon=[2, 3],
+            xScale=[4, 1],
+            objScale=[0.3],
+            conScale=[0.1, 8],
+            offset=[3, 7],
         )
         oldDV = self.optProb.getDVs()
         # set values for only one VarGroup
@@ -185,20 +215,20 @@ class TestOptProb(unittest.TestCase):
         # test dict to vec mappings
         vec = processValue(key, val, "vec")
         dictionary = processValue(key, vec, "dict")
-        self.assert_dict_allclose(val, dictionary)
+        assert_dict_allclose(val, dictionary)
 
         # test mappings using dictionaries
         val_opt = map_funcs[key + "_Dict"][0](val)
         val_user = map_funcs[key + "_Dict"][1](val_opt)
-        self.assert_dict_allclose(val_user, val)
-        self.assert_dict_not_allclose(val_user, val_opt)
+        assert_dict_allclose(val_user, val)
+        assert_dict_not_allclose(val_user, val_opt)
 
         # test mappings using vectors
         val = processValue(key, val, "vec")
         val_opt = map_funcs[key][0](val)
         val_user = map_funcs[key][1](val_opt)
-        assert_allclose(val_user, val, atol=tol, rtol=tol)
-        self.assert_not_allclose(val_user, val_opt)
+        assert_allclose(val_user, val, atol=self.tol, rtol=self.tol)
+        assert_not_allclose(val_user, val_opt)
 
         # check that the scaling was actually done correctly
         # we only check this for the array version because
@@ -214,32 +244,18 @@ class TestOptProb(unittest.TestCase):
                 scale = np.hstack(self.conScale)
             assert_allclose(val_opt, val_user * scale)
 
-    def assert_dict_allclose(self, actual, desired, atol=tol, rtol=tol):
+    def test_finalize(self):
         """
-        Simple assert for two flat dictionaries, where the values are
-        assumed to be numpy arrays
-
-        The keys are checked first to make sure that they match
+        Check that multiple finalize calls don't mess up the optProb
         """
-        self.assertEqual(set(actual.keys()), set(desired.keys()))
-        for key in actual.keys():
-            assert_allclose(actual[key], desired[key], atol=atol, rtol=rtol)
-
-    def assert_dict_not_allclose(self, actual, desired, atol=tol, rtol=tol):
-        """
-        The opposite of assert_dict_allclose
-        """
-        self.assertEqual(set(actual.keys()), set(desired.keys()))
-        for key in actual.keys():
-            if np.allclose(actual[key], desired[key], atol=tol, rtol=tol):
-                raise AssertionError("Dictionaries are close! Inputs are {} and {}".format(actual, desired))
-
-    def assert_not_allclose(self, actual, desired, atol=tol, rtol=tol):
-        """
-        The numpy array version
-        """
-        if np.allclose(actual, desired, atol=atol, rtol=tol):
-            raise AssertionError("Arrays are close! Inputs are {} and {}".format(actual, desired))
+        self.setup_optProb(nObj=1, nDV=[4, 8], nCon=[2, 3], xScale=[1.0, 1.0], conScale=[1.0, 1.0], offset=[0, 0])
+        assert_optProb_size(self.optProb, 1, 12, 5)
+        self.optProb.addObj("obj2")
+        assert_optProb_size(self.optProb, 2, 12, 5)
+        self.optProb.addVar("DV2")
+        assert_optProb_size(self.optProb, 2, 13, 5)
+        self.optProb.addCon("CON2")
+        assert_optProb_size(self.optProb, 2, 13, 6)
 
 
 if __name__ == "__main__":

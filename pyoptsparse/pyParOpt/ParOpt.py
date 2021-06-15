@@ -1,7 +1,11 @@
-import numpy as np
-import os
+# Standard Python modules
 import datetime
+import os
 
+# External modules
+import numpy as np
+
+# isort: off
 # Attempt to import mpi4py.
 # If PYOPTSPARSE_REQUIRE_MPI is set to a recognized positive value, attempt import
 # and raise exception on failure. If set to anything else, no import is attempted.
@@ -23,9 +27,12 @@ else:
         from mpi4py import MPI
     except ImportError:
         _ParOpt = None
+# isort: on
 
-from ..pyOpt_optimizer import Optimizer
+# Local modules
 from ..pyOpt_error import Error
+from ..pyOpt_optimizer import Optimizer
+from ..pyOpt_utils import INFINITY
 
 
 class ParOpt(Optimizer):
@@ -37,7 +44,7 @@ class ParOpt(Optimizer):
     capability to handle this type of design problem.
     """
 
-    def __init__(self, raiseError=True, *args, **kwargs):
+    def __init__(self, raiseError=True, options={}):
         name = "ParOpt"
         category = "Local Optimizer"
         if _ParOpt is None:
@@ -46,26 +53,29 @@ class ParOpt(Optimizer):
 
         # Create and fill-in the dictionary of default option values
         self.defOpts = {}
-        options = _ParOpt.getOptionsInfo()
-        for option_name in options:
+        paropt_default_options = _ParOpt.getOptionsInfo()
+        # Manually override the options with missing default values
+        paropt_default_options["ip_checkpoint_file"].default = "default.out"
+        paropt_default_options["problem_name"].default = "problem"
+        for option_name in paropt_default_options:
             # Get the type and default value of the named argument
             _type = None
-            if options[option_name].option_type == "bool":
+            if paropt_default_options[option_name].option_type == "bool":
                 _type = bool
-            elif options[option_name].option_type == "int":
+            elif paropt_default_options[option_name].option_type == "int":
                 _type = int
-            elif options[option_name].option_type == "float":
+            elif paropt_default_options[option_name].option_type == "float":
                 _type = float
             else:
                 _type = str
-            default_value = options[option_name].default
+            default_value = paropt_default_options[option_name].default
 
             # Set the entry into the dictionary
             self.defOpts[option_name] = [_type, default_value]
 
         self.set_options = {}
         self.informs = {}
-        Optimizer.__init__(self, name, category, self.defOpts, self.informs, *args, **kwargs)
+        super().__init__(name, category, defaultOptions=self.defOpts, informs=self.informs, options=options)
 
         # ParOpt requires a dense Jacobian format
         self.jacType = "dense2d"
@@ -122,7 +132,7 @@ class ParOpt(Optimizer):
         storeSens : bool
             Flag sepcifying if sensitivities are to be stored in hist.
             This is necessay for hot-starting only.
-            """
+        """
 
         self.callCounter = 0
         self.storeSens = storeSens
@@ -135,8 +145,9 @@ class ParOpt(Optimizer):
         # Save the optimization problem and finalize constraint
         # Jacobian, in general can only do on root proc
         self.optProb = optProb
-        self.optProb.finalizeDesignVariables()
-        self.optProb.finalizeConstraints()
+        self.optProb.finalize()
+        # Set history/hotstart
+        self._setHistory(storeHistory, hotStart)
         self._setInitialCacheValues()
         self._setSens(sens, sensStep, sensMode)
         blx, bux, xs = self._assembleContinuousVariables()
@@ -158,8 +169,6 @@ class ParOpt(Optimizer):
             self.optProb.offset = buc
 
         if self.optProb.comm.rank == 0:
-            # Set history/hotstart
-            self._setHistory(storeHistory, hotStart)
 
             class Problem(_ParOpt.Problem):
                 def __init__(self, ptr, n, m, xs, blx, bux):
@@ -178,7 +187,7 @@ class ParOpt(Optimizer):
                     # Find the average distance between lower and upper bound
                     bound_sum = 0.0
                     for i in range(len(x)):
-                        if self.blx[i] <= -1e20 or self.bux[i] >= 1e20:
+                        if self.blx[i] <= -INFINITY or self.bux[i] >= INFINITY:
                             bound_sum += 1.0
                         else:
                             bound_sum += self.bux[i] - self.blx[i]
